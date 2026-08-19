@@ -21,22 +21,27 @@ jobs:
         run: npm ci
       - name: Verify frontend
         run: npm run build && npm run test
-      - name: Configure signed updater release
+      - name: Configure release packaging
         shell: pwsh
         env:
           TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_UPDATER_PUBKEY)) { throw 'Missing TAURI_UPDATER_PUBKEY secret.' }
+          $signedUpdater = -not [string]::IsNullOrWhiteSpace($env:TAURI_UPDATER_PUBKEY) -and -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)
           $releaseConfig = @{
-            bundle = @{ createUpdaterArtifacts = $true }
-            plugins = @{ updater = @{
+            bundle = @{ createUpdaterArtifacts = $signedUpdater }
+          }
+          if ($signedUpdater) {
+            $releaseConfig.plugins = @{ updater = @{
               pubkey = $env:TAURI_UPDATER_PUBKEY
               endpoints = @('https://github.com/LightyearXizIl/LottoLab/releases/latest/download/latest.json')
               windows = @{ installMode = 'passive' }
             } }
+          } else {
+            Write-Host 'No LottoLab updater signing secrets: publishing unsigned installer without automatic-update manifest.'
           }
           $releaseConfig | ConvertTo-Json -Depth 8 | Set-Content 'src-tauri/tauri.release.conf.json' -Encoding utf8
-      - name: Build and publish signed NSIS installer
+      - name: Build and publish NSIS installer
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,25 +50,28 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "LottoLab ${{ github.ref_name }}"
-          releaseBody: "请在此版本发布前补充与实际改动一致的中文更新说明。"
-          releaseDraft: true
+          releaseBody: "首个 LottoLab 本地历史号码研究版本。历史评分不等于中奖概率；所有合法号码组合的理论中奖机会相同。未配置更新签名密钥时，仅发布安装包与 SHA-256 校验值。"
+          releaseDraft: false
           prerelease: false
           args: --bundles nsis --config src-tauri/tauri.release.conf.json
-      - name: Publish update manifest and SHA-256
+      - name: Upload installer checksum and optional update manifest
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $bundle = Get-ChildItem 'src-tauri/target/release/bundle/nsis' -Filter '*setup.exe' | Select-Object -First 1
           if (-not $bundle) { throw 'NSIS installer not found.' }
-          $signaturePath = "$($bundle.FullName).sig"
-          if (-not (Test-Path $signaturePath)) { throw 'Updater signature not found.' }
-          $signature = (Get-Content $signaturePath -Raw).Trim()
           $sha = (Get-FileHash $bundle.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           $tag = '${{ github.ref_name }}'
-          $manifest = @{ version = $tag.TrimStart('v'); notes = "LottoLab $tag"; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = @{ 'windows-x86_64' = @{ url = "https://github.com/LightyearXizIl/LottoLab/releases/download/$tag/$($bundle.Name)"; signature = $signature } } }
-          $manifestPath = Join-Path $bundle.DirectoryName 'latest.json'
-          $manifest | ConvertTo-Json -Depth 8 | Set-Content $manifestPath -Encoding utf8
           $shaPath = Join-Path $bundle.DirectoryName 'SHA256SUMS.txt'
           "$sha  $($bundle.Name)" | Set-Content $shaPath -Encoding utf8
-          gh release upload $tag $manifestPath $shaPath --clobber
+          $assets = @($bundle.FullName, $shaPath)
+          $signaturePath = "$($bundle.FullName).sig"
+          if (Test-Path $signaturePath) {
+            $signature = (Get-Content $signaturePath -Raw).Trim()
+            $manifest = @{ version = $tag.TrimStart('v'); notes = "LottoLab $tag"; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = @{ 'windows-x86_64' = @{ url = "https://github.com/LightyearXizIl/LottoLab/releases/download/$tag/$($bundle.Name)"; signature = $signature } } }
+            $manifestPath = Join-Path $bundle.DirectoryName 'latest.json'
+            $manifest | ConvertTo-Json -Depth 8 | Set-Content $manifestPath -Encoding utf8
+            $assets += $manifestPath
+          }
+          gh release upload $tag $assets --clobber
