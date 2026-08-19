@@ -13,6 +13,6 @@ const emit = defineEmits<{ 'update:modelValue': [value: GameKind] }>()
 
 <style scoped>
 .switcher { display: inline-flex; gap: .2rem; padding: .25rem; border: 1px solid var(--line); border-radius: .7rem; background: #f8fafc; }
-button { border: 0; border-radius: .45rem; padding: .55rem .9rem; background: transparent; color: var(--ink-soft); cursor: pointer; font: inherit; font-weight: 650; }
+  button { min-height:2.75rem;border: 0; border-radius: .45rem; padding: .55rem .9rem; background: transparent; color: var(--ink-soft); cursor: pointer; font: inherit; font-weight: 650; }
 button.active { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgb(15 23 42 / 10%); }
 </style>

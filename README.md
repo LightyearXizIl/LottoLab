@@ -1,6 +1,6 @@
 # LottoLab
 
-LottoLab 是一款 Windows 本地历史号码研究工具，支持双色球与大乐透的官方开奖数据同步、特征统计、可复现的五组候选生成、走步回测和本地收藏。
+LottoLab 是一款 Windows 与 Android 本地历史号码研究工具，支持双色球与大乐透的官方开奖数据同步、特征统计、可复现的五组候选生成、走步回测和本地收藏。
 
 > 历史评分不等于中奖概率。所有合法号码组合的理论中奖机会相同。LottoLab 不提供账号、支付、投注、代购或任何形式的在线售彩功能。
 
@@ -18,6 +18,32 @@ npm.cmd run tauri build -- --bundles nsis
 ```
 
 本机需要 Node.js、Rust MSVC 工具链和 WebView2。开奖数据、收藏和策略预设写入系统应用数据目录中的 SQLite 数据库，不会上传。
+
+## Android 开发
+
+Android 构建需要 Android Studio、JDK 21、Android SDK Platform、Platform-Tools、Build-Tools、Command-line Tools、NDK，以及四个 Rust Android targets。当前生成工程使用 Gradle 8.14.3；已验证的构建 JDK 是 Microsoft OpenJDK 21.0.12。Android Studio Quail 3 自带的 JDK 25 不能用于运行该版本 Gradle，请将 `JAVA_HOME` 指向 JDK 21。
+
+首次初始化：
+
+```powershell
+npm.cmd run tauri android init
+```
+
+连接真机或启动模拟器后运行：
+
+```powershell
+npm.cmd run tauri android dev
+```
+
+构建本地 APK：
+
+```powershell
+npm.cmd run tauri android build -- --apk
+```
+
+Android 最低版本为 Android 9（SDK 28）。Windows 与 Android 各自使用独立的本地 SQLite 数据库，不进行账号或云同步。Release keystore 必须保存在仓库外；`src-tauri/gen/android/keystore.properties`、`*.jks` 与 `*.keystore` 已被 Git 忽略。
+
+Windows 下如果仓库位于含中文字符的路径，生成工程已通过 `android.overridePathCheck=true` 允许 AGP 原地构建，并关闭 Kotlin 增量编译以兼容 Cargo 缓存与工程位于不同盘符的情况。运行 API 28 x86_64 模拟器还需要启用 Windows Hypervisor Platform 或安装 Android Emulator Hypervisor Driver；安装驱动后可直接使用已创建的 `LottoLab_API_28` AVD。
 
 ## 官方数据
 

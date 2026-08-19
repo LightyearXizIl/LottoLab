@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Android permissions for the main webview",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "clipboard-manager:allow-write-text",
+    "dialog:allow-save",
+    "fs:allow-write-text-file",
+    "os:allow-platform"
+  ]
+}
