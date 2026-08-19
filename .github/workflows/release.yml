@@ -1,0 +1,69 @@
+name: Release LottoLab
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Verify frontend
+        run: npm run build && npm run test
+      - name: Configure signed updater release
+        shell: pwsh
+        env:
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_UPDATER_PUBKEY)) { throw 'Missing TAURI_UPDATER_PUBKEY secret.' }
+          $releaseConfig = @{
+            bundle = @{ createUpdaterArtifacts = $true }
+            plugins = @{ updater = @{
+              pubkey = $env:TAURI_UPDATER_PUBKEY
+              endpoints = @('https://github.com/LightyearXizIl/LottoLab/releases/latest/download/latest.json')
+              windows = @{ installMode = 'passive' }
+            } }
+          }
+          $releaseConfig | ConvertTo-Json -Depth 8 | Set-Content 'src-tauri/tauri.release.conf.json' -Encoding utf8
+      - name: Build and publish signed NSIS installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "LottoLab ${{ github.ref_name }}"
+          releaseBody: "请在此版本发布前补充与实际改动一致的中文更新说明。"
+          releaseDraft: true
+          prerelease: false
+          args: --bundles nsis --config src-tauri/tauri.release.conf.json
+      - name: Publish update manifest and SHA-256
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $bundle = Get-ChildItem 'src-tauri/target/release/bundle/nsis' -Filter '*setup.exe' | Select-Object -First 1
+          if (-not $bundle) { throw 'NSIS installer not found.' }
+          $signaturePath = "$($bundle.FullName).sig"
+          if (-not (Test-Path $signaturePath)) { throw 'Updater signature not found.' }
+          $signature = (Get-Content $signaturePath -Raw).Trim()
+          $sha = (Get-FileHash $bundle.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $tag = '${{ github.ref_name }}'
+          $manifest = @{ version = $tag.TrimStart('v'); notes = "LottoLab $tag"; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = @{ 'windows-x86_64' = @{ url = "https://github.com/LightyearXizIl/LottoLab/releases/download/$tag/$($bundle.Name)"; signature = $signature } } }
+          $manifestPath = Join-Path $bundle.DirectoryName 'latest.json'
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content $manifestPath -Encoding utf8
+          $shaPath = Join-Path $bundle.DirectoryName 'SHA256SUMS.txt'
+          "$sha  $($bundle.Name)" | Set-Content $shaPath -Encoding utf8
+          gh release upload $tag $manifestPath $shaPath --clobber

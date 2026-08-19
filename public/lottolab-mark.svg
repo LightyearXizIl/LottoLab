@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="lottolab-title lottolab-desc">
+  <title id="lottolab-title">LottoLab 数据轨迹标记</title>
+  <desc id="lottolab-desc">一条上升的数据轨迹连接红色和蓝色圆点，代表本地彩票历史研究。</desc>
+  <rect width="64" height="64" rx="17" fill="#16253d"/>
+  <path d="M14 43C22 43 23 28 32 31s9 13 18 4" fill="none" stroke="#f8fafc" stroke-linecap="round" stroke-width="4"/>
+  <circle cx="16" cy="43" r="7" fill="#d82f45"/><circle cx="32" cy="31" r="7" fill="#f7fafc"/><circle cx="50" cy="35" r="7" fill="#2e6de0"/>
+  <circle cx="32" cy="31" r="2" fill="#16253d"/>
+</svg>
