@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  release-windows-draft:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,27 +21,16 @@ jobs:
         run: npm ci
       - name: Verify frontend
         run: npm run build && npm run test
-      - name: Configure release packaging
+      - name: Confirm updater signing secrets
         shell: pwsh
         env:
-          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          $signedUpdater = -not [string]::IsNullOrWhiteSpace($env:TAURI_UPDATER_PUBKEY) -and -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)
-          $releaseConfig = @{
-            bundle = @{ createUpdaterArtifacts = $signedUpdater }
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY) -or [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD are required for a release.'
           }
-          if ($signedUpdater) {
-            $releaseConfig.plugins = @{ updater = @{
-              pubkey = $env:TAURI_UPDATER_PUBKEY
-              endpoints = @('https://github.com/LightyearXizIl/LottoLab/releases/latest/download/latest.json')
-              windows = @{ installMode = 'passive' }
-            } }
-          } else {
-            Write-Host 'No LottoLab updater signing secrets: publishing unsigned installer without automatic-update manifest.'
-          }
-          $releaseConfig | ConvertTo-Json -Depth 8 | Set-Content 'src-tauri/tauri.release.conf.json' -Encoding utf8
-      - name: Build and publish NSIS installer
+      - name: Build signed Windows installer as draft release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,28 +39,38 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "LottoLab ${{ github.ref_name }}"
-          releaseBody: "首个 LottoLab 本地历史号码研究版本。历史评分不等于中奖概率；所有合法号码组合的理论中奖机会相同。未配置更新签名密钥时，仅发布安装包与 SHA-256 校验值。"
-          releaseDraft: false
+          releaseBody: "LottoLab v0.0.2：新增三档主题、安卓原生风界面和签名 Windows 自动更新引导。历史评分不等于中奖概率；所有合法号码组合的理论中奖机会相同。"
+          releaseDraft: true
           prerelease: false
-          args: --bundles nsis --config src-tauri/tauri.release.conf.json
-      - name: Upload installer checksum and optional update manifest
+          args: --bundles nsis
+      - name: Upload signed updater manifest and checksums
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $bundle = Get-ChildItem 'src-tauri/target/release/bundle/nsis' -Filter '*setup.exe' | Select-Object -First 1
-          if (-not $bundle) { throw 'NSIS installer not found.' }
-          $sha = (Get-FileHash $bundle.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bundleDir = 'src-tauri/target/release/bundle/nsis'
+          $installer = Get-ChildItem $bundleDir -Filter '*setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Expected NSIS installer was not built.' }
+          # Tauri v2 reuses the signed NSIS installer as its updater artifact.
+          $signaturePath = "$($installer.FullName).sig"
+          if (-not (Test-Path -LiteralPath $signaturePath)) { throw 'Updater signature was not built.' }
           $tag = '${{ github.ref_name }}'
-          $shaPath = Join-Path $bundle.DirectoryName 'SHA256SUMS.txt'
-          "$sha  $($bundle.Name)" | Set-Content $shaPath -Encoding utf8
-          $assets = @($bundle.FullName, $shaPath)
-          $signaturePath = "$($bundle.FullName).sig"
-          if (Test-Path $signaturePath) {
-            $signature = (Get-Content $signaturePath -Raw).Trim()
-            $manifest = @{ version = $tag.TrimStart('v'); notes = "LottoLab $tag"; pub_date = (Get-Date).ToUniversalTime().ToString('o'); platforms = @{ 'windows-x86_64' = @{ url = "https://github.com/LightyearXizIl/LottoLab/releases/download/$tag/$($bundle.Name)"; signature = $signature } } }
-            $manifestPath = Join-Path $bundle.DirectoryName 'latest.json'
-            $manifest | ConvertTo-Json -Depth 8 | Set-Content $manifestPath -Encoding utf8
-            $assets += $manifestPath
+          $signature = (Get-Content -LiteralPath $signaturePath -Raw).Trim()
+          $manifest = @{
+            version = $tag.TrimStart('v')
+            notes = "LottoLab $tag"
+            pub_date = (Get-Date).ToUniversalTime().ToString('o')
+            platforms = @{
+              'windows-x86_64' = @{
+                url = "https://github.com/LightyearXizIl/LottoLab/releases/download/$tag/$($installer.Name)"
+                signature = $signature
+              }
+            }
           }
-          gh release upload $tag $assets --clobber
+          $manifestPath = Join-Path $bundleDir 'latest.json'
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+          $checksumPath = Join-Path $bundleDir 'SHA256SUMS.txt'
+          @($installer, (Get-Item -LiteralPath $signaturePath), (Get-Item -LiteralPath $manifestPath)) | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content -LiteralPath $checksumPath -Encoding utf8
+          gh release upload $tag $installer.FullName $signaturePath $manifestPath $checksumPath --clobber

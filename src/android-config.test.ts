@@ -7,4 +7,8 @@ describe('Android Tauri configuration', () => {
       expect.objectContaining({ label: 'main' }),
     )
   })
+
+  it('keeps Android updater-free', () => {
+    expect(JSON.stringify(androidConfig)).not.toContain('updater')
+  })
 })

@@ -26,11 +26,11 @@
         "languages": ["SimpChinese"]
       }
     },
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "updater": {
-      "pubkey": "UNCONFIGURED_REPLACE_BEFORE_FIRST_RELEASE",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM2MDQ5QkI0MUJCMEYxRDMKUldUVDhiQWJ0SnNFTnZCUmJhVSsxYUxVUzlGZ3lZU3pyUnlsdzVOOUh3T0ZMV0VDWVladFdva3YK",
       "endpoints": [
         "https://github.com/LightyearXizIl/LottoLab/releases/latest/download/latest.json"
       ],

@@ -306,7 +306,7 @@ fn list_draws(
 async fn sync_draws(game: String, database: State<'_, Database>) -> Result<SyncReport, String> {
     validate_game(&game)?;
     let client = Client::builder()
-        .user_agent("LottoLab/0.0.1 (local history research)")
+        .user_agent("LottoLab/0.0.2 (local history research)")
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|error| error.to_string())?;

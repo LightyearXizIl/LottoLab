@@ -49,11 +49,36 @@ open class BuildTask : DefaultTask() {
         val target = target ?: throw GradleException("target cannot be null")
         val release = release ?: throw GradleException("release cannot be null")
         val args = listOf("run", "--", "tauri", "android", "android-studio-script");
+        val ndkHome = System.getenv("NDK_HOME") ?: System.getenv("ANDROID_NDK_HOME")
+        val ndkBin = ndkHome?.let { File(it, "toolchains/llvm/prebuilt/windows-x86_64/bin") }
+        val linker = when (target) {
+            "aarch64" -> "aarch64-linux-android28-clang.cmd"
+            "armv7" -> "armv7a-linux-androideabi28-clang.cmd"
+            "i686" -> "i686-linux-android28-clang.cmd"
+            "x86_64" -> "x86_64-linux-android28-clang.cmd"
+            else -> null
+        }
+        val cargoTarget = when (target) {
+            "aarch64" -> "AARCH64_LINUX_ANDROID"
+            "armv7" -> "ARMV7_LINUX_ANDROIDEABI"
+            "i686" -> "I686_LINUX_ANDROID"
+            "x86_64" -> "X86_64_LINUX_ANDROID"
+            else -> null
+        }
 
         project.exec {
             workingDir(File(project.projectDir, rootDirRel))
-            executable(executable)
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                executable("cmd")
+                args("/d", "/c", "$executable.cmd")
+            } else {
+                executable(executable)
+            }
             args(args)
+            if (ndkBin?.isDirectory == true) {
+                environment("PATH", "${ndkBin.absolutePath};${System.getenv("PATH")}")
+                if (linker != null && cargoTarget != null) environment("CARGO_TARGET_${cargoTarget}_LINKER", linker)
+            }
             if (project.logger.isEnabled(LogLevel.DEBUG)) {
                 args("-vv")
             } else if (project.logger.isEnabled(LogLevel.INFO)) {

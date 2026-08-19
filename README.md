@@ -38,7 +38,7 @@ npm.cmd run tauri android dev
 构建本地 APK：
 
 ```powershell
-npm.cmd run tauri android build -- --apk
+.\scripts\build-android-release.ps1
 ```
 
 Android 最低版本为 Android 9（SDK 28）。Windows 与 Android 各自使用独立的本地 SQLite 数据库，不进行账号或云同步。Release keystore 必须保存在仓库外；`src-tauri/gen/android/keystore.properties`、`*.jks` 与 `*.keystore` 已被 Git 忽略。
@@ -60,8 +60,8 @@ Windows 下如果仓库位于含中文字符的路径，生成工程已通过 `a
 
 1. 在安全的本机环境使用 `npm run tauri signer generate` 生成 Tauri 更新密钥，并离线备份私钥。
 2. 将私钥和密码分别配置到仓库 Secrets：`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
-3. 将生成的公钥写入 `src-tauri/tauri.conf.json` 的 updater 配置；公钥可以公开，私钥不得进入仓库或日志。
-4. 发布 `v0.0.1` 后，验证 Release 中包含 `LottoLab_0.0.1_x64-setup.exe`、签名文件、SHA-256和 `latest.json`，再用后续版本验证真实更新与数据保留。
+3. 将生成的公钥写入 `src-tauri/tauri.windows.conf.json` 的 updater 配置；公钥可以公开，私钥不得进入仓库或日志。
+4. 发布 `v0.0.2` 后，验证 Release 中包含 Windows 安装程序及其 `.sig`（Tauri v2 将签名 NSIS 安装程序直接作为更新包）、`latest.json`、通用 APK、`release.json` 和 SHA-256；v0.0.2 是自动更新引导版本，需在 v0.0.3 验证公开版本间的真实更新与数据保留。
 
 未配置更新公钥和签名密钥前，应用只会显示公开 Release 清单检查结果，不会安装任何更新。
 

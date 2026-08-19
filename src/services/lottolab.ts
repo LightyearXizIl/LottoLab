@@ -1,4 +1,5 @@
 import type { DrawRecord, GameKind, SyncReport } from '../domain/types'
+import { PUBLIC_RELEASE_MANIFEST_URL } from '../app-meta'
 
 const isTauri = () => '__TAURI_INTERNALS__' in window
 
@@ -26,11 +27,38 @@ export async function listSavedRuns(): Promise<string[]> {
   return invoke<string[]>('list_saved_runs')
 }
 
-export async function fetchUpdateManifest(): Promise<{ version: string, notes?: string } | null> {
+export interface PublicReleaseManifest {
+  version: string
+  notes?: string
+  publishedAt: string
+  releaseUrl: string
+  android: {
+    apkUrl: string
+    sha256: string
+    sizeBytes: number
+    minSdk: number
+  }
+}
+
+function isPublicReleaseManifest(value: unknown): value is PublicReleaseManifest {
+  if (!value || typeof value !== 'object') return false
+  const manifest = value as Partial<PublicReleaseManifest>
+  return typeof manifest.version === 'string'
+    && typeof manifest.publishedAt === 'string'
+    && typeof manifest.releaseUrl === 'string'
+    && !!manifest.android
+    && typeof manifest.android.apkUrl === 'string'
+    && typeof manifest.android.sha256 === 'string'
+    && typeof manifest.android.sizeBytes === 'number'
+    && typeof manifest.android.minSdk === 'number'
+}
+
+export async function fetchPublicReleaseManifest(endpoint = PUBLIC_RELEASE_MANIFEST_URL): Promise<PublicReleaseManifest | null> {
   try {
-    const response = await fetch('https://github.com/LightyearXizIl/LottoLab/releases/latest/download/latest.json', { cache: 'no-store' })
+    const response = await fetch(endpoint, { cache: 'no-store' })
     if (!response.ok) return null
-    return response.json() as Promise<{ version: string, notes?: string }>
+    const manifest: unknown = await response.json()
+    return isPublicReleaseManifest(manifest) ? manifest : null
   } catch { return null }
 }
 
