@@ -363,12 +363,15 @@ fn list_saved_runs(database: State<Database>) -> Result<Vec<String>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    println!("LottoLab: Rust mobile entry started");
     let builder = tauri::Builder::default()
         .setup(|app| {
+            println!("LottoLab: initializing application data");
             let database = Database {
                 path: app_database_path(app.handle())?,
             };
             open_database(&database.path)?;
+            println!("LottoLab: application data ready");
             app.manage(database);
             Ok(())
         })
@@ -379,6 +382,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init());
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    println!("LottoLab: starting Tauri event loop");
     builder
         .invoke_handler(tauri::generate_handler![
             list_draws,
